@@ -1,20 +1,20 @@
 {
     "KPlugin": {
         "Name": "DT Dynamic Workspace",
-        "Description": "GNOME-like dynamic workspace",
+        "Description": "Dynamic workspace",
         "Icon": "preferences-system-windows",
         
         "Authors": [
             {
-                "Email": "",
                 "Name": "DT"
             }
         ],
         "Id": "DT_DYNAMIC_WORKSPACE",
-        "Version": "1.0",
+        "Version": "0.1",
         "License": "GPLv3"
     },
     "X-Plasma-API": "javascript",
     "X-Plasma-MainScript": "code/main.js",
-    "KPackageStructure": "KWin/Script"
+    "KPackageStructure": "KWin/Script",
+    "X-KDE-ConfigModule": "kwin/effects/configs/kcm_kwin4_genericscripted"
 }

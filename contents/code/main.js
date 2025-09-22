@@ -1,16 +1,18 @@
 //====================== Config and definitions =========================
 //CONFIG
-const CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_MAXIMIZED = true;
-const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_MAXIMIZED = true;
-const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_MAXIMIZED = true;
-const CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_FULLSCREENED = true;
-const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_FULLSCREENED = true;
-const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_FULLSCREENED = true;
-const CONFIG_ENABLE_LOGGING = false;
-const CONFIG_FIX_DESKTOP_SWITCH_ANIMATION = true;
+const CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_MAXIMIZED = readConfig("toggleAboveOthersOnMaximized", true);
+const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_MAXIMIZED = readConfig("moveToNewDesktopOnMaximized", true);
+const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_STARTED_MAXIMIZED = readConfig("moveToNewDesktopOnStartedMaximized", true);
+const CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_FULLSCREENED = readConfig("toggleAboveOthersOnFullScreen", true);
+const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_FULLSCREENED = readConfig("moveToNewDesktopOnFullScreen", true);
+const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_STARTED_FULLSCREENED = readConfig("moveToNewDesktopOnStartedFullScreen", true);
 
-const CONFIG_CLEANUP_EMPTY_DESKTOPS = true;
-const CONFIG_ADD_ONE_DESKTOP_ON_THE_RIGHT = true;
+const CONFIG_FIX_DESKTOP_SWITCH_ANIMATION = readConfig("fixDesktopSwitchAnimation", true);
+
+const CONFIG_CLEANUP_EMPTY_DESKTOPS = readConfig("cleanupEmptyDesktops", true);
+const CONFIG_ADD_ONE_DESKTOP_ON_THE_RIGHT = readConfig("keepSpareDesktop", true);;
+
+const CONFIG_ENABLE_LOGGING = false;//not included in GUI config
 
 // ======================= Initialize variables =========================
 // Initialize array for windows maximized with the "above others" enabled
@@ -599,7 +601,7 @@ workspace.windowAdded.connect((client) => {
 			//is window maximized when opened?
 			if (checkWindowMaximized(client)) {
 				if (CONFIG_ENABLE_LOGGING) print("NEW WINDOW OPEN IN MAXIMIZED STATE");
-				if (CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_MAXIMIZED) {
+				if (CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_STARTED_MAXIMIZED) {
 					//move to new desktop
 					handleNewDesktopOnMaximized(client, true);
 				} else {
@@ -624,7 +626,7 @@ workspace.windowAdded.connect((client) => {
 			//is window fullscreened when opened?
 			if (client.fullScreen) {
 				if (CONFIG_ENABLE_LOGGING) print("NEW WINDOW OPEN IN FULLSCREEN STATE");
-				if (CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_FULLSCREENED) {
+				if (CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_STARTED_FULLSCREENED) {
 					//move to new desktop
 					handleNewDesktopOnMaximized(client, false);
 				}

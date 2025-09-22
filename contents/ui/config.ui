@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>KWin::DT_DynamicWorkspaceConfig</class>
+ <widget class="QWidget" name="KWin::DT_DynamicWorkspaceConfig">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>200</width>
+    <height>100</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>DT Dynamic Workspace</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+      <widget class="QCheckBox" name="kcfg_toggleAboveOthersOnMaximized">
+        <property name="text">
+          <string>Toggle window "Above others" when it's maximized</string>
+        </property>
+      </widget>
+    </item>
+    <item>
+      <widget class="QCheckBox" name="kcfg_moveToNewDesktopOnMaximized">
+        <property name="text">
+          <string>Send window to a new desktop when it's maximized</string>
+        </property>
+      </widget>
+    </item>
+    <item>
+      <widget class="QCheckBox" name="kcfg_moveToNewDesktopOnStartedMaximized">
+        <property name="text">
+          <string>Send window to a new desktop when it's started maximized</string>
+        </property>
+      </widget>
+    </item>
+    <item>
+      <widget class="QCheckBox" name="kcfg_toggleAboveOthersOnFullScreen">
+        <property name="text">
+          <string>Toggle window "Above others" when it's fullscreened</string>
+        </property>
+      </widget>
+    </item>
+    <item>
+      <widget class="QCheckBox" name="kcfg_moveToNewDesktopOnFullScreen">
+        <property name="text">
+          <string>Send window to a new desktop when it's fullscreened</string>
+        </property>
+      </widget>
+    </item>
+    <item>
+      <widget class="QCheckBox" name="kcfg_moveToNewDesktopOnStartedFullScreen">
+        <property name="text">
+          <string>Send window to a new desktop when it's started fullscreened</string>
+        </property>
+      </widget>
+    </item>
+
+    <item>
+      <widget class="QCheckBox" name="kcfg_fixDesktopSwitchAnimation">
+        <property name="text">
+          <string>Fix desktop switching animation when a desktop is removed (experimental)</string>
+        </property>
+      </widget>
+    </item>
+    <item>
+      <widget class="QCheckBox" name="kcfg_cleanupEmptyDesktops">
+        <property name="text">
+          <string>Cleanup unused desktops</string>
+        </property>
+      </widget>
+    </item>
+    <item>
+      <widget class="QCheckBox" name="kcfg_keepSpareDesktop">
+        <property name="text">
+          <string>Keep an extra desktop available at the right</string>
+        </property>
+      </widget>
+    </item>
+
+    <item>
+      <widget class="QLabel" name="label_save_notice">
+       <property name="font">
+        <font>
+         <pointsize>11</pointsize>
+         <bold>true</bold>
+        </font>
+       </property>
+       <property name="text">
+        <string>Please, disable and re-enable the script to apply new config.</string>
+       </property>
+      </widget>
+     </item>
+  </layout>
+ </widget>
+ <resources/>
+ </ui>
