@@ -7,6 +7,7 @@ const CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_FULLSCREENED = true;
 const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_FULLSCREENED = true;
 const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_FULLSCREENED = true;
 const CONFIG_ENABLE_LOGGING = true;
+const CONFIG_TRY_TO_FIX_ANIMATION_WHEN_UNMAXIMIZED = true;
 
 // ======================= Initialize variables =========================
 // Initialize array for windows maximized with the "above others" enabled
@@ -352,10 +353,24 @@ function handleNewDekstopOnUnmaximized(unmaximizedClient) {
 			const newY = (screenGeometry.height - newHeight) / 2;
 			unmaximizedClient.frameGeometry = {x: newX, y: newY, width: newWidth, height: newHeight};
 		}
-		//change current desktop to the original one
-		workspace.currentDesktop = maximizedToOwnDesktopList[arrayIndex].originalDesktop;
-		//remove the dedicated desktop
-		workspace.removeDesktop(maximizedToOwnDesktopList[arrayIndex].newDesktop);
+
+		if (CONFIG_TRY_TO_FIX_ANIMATION_WHEN_UNMAXIMIZED) {
+			//get the desktop on the right number
+			const rightDesktopNumber = getNextDesktopNumber(workspace.currentDesktop);
+			//switch to the desktop on the right
+			const targetDesktopNumber = rightDesktopNumber < 0 || rightDesktopNumber > workspace.desktops.length ? rightDesktopNumber : workspace.desktops.length - 1;
+			workspace.currentDesktop = workspace.desktops[targetDesktopNumber];
+			//remove the dedicated desktop
+			workspace.removeDesktop(maximizedToOwnDesktopList[arrayIndex].newDesktop);
+			//switch to the original desktop
+			workspace.currentDesktop = maximizedToOwnDesktopList[arrayIndex].originalDesktop;
+		} else {
+			//change current desktop to the original one
+			workspace.currentDesktop = maximizedToOwnDesktopList[arrayIndex].originalDesktop;
+			//remove the dedicated desktop
+			workspace.removeDesktop(maximizedToOwnDesktopList[arrayIndex].newDesktop);
+		}
+
 		//remove array item
 		maximizedToOwnDesktopList.splice(arrayIndex, 1);
 	}
