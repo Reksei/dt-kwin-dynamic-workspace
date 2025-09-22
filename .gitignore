@@ -1,8 +1,0 @@
-# Logs
-*.log
-
-# VS Code settings
-.vscode/
-
-# KWin package archives
-*.tar.gz
