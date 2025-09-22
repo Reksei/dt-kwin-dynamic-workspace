@@ -12,8 +12,7 @@
         ],
         "Id": "DT_DYNAMIC_WORKSPACE",
         "Version": "1.0",
-        "License": "GPLv3",
-        "Website": "https://github.com/username/myscript"
+        "License": "GPLv3"
     },
     "X-Plasma-API": "javascript",
     "X-Plasma-MainScript": "code/main.js",
