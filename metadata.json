@@ -1,0 +1,21 @@
+{
+    "KPlugin": {
+        "Name": "DT Dynamic Workspace",
+        "Description": "GNOME-like dynamic workspace",
+        "Icon": "preferences-system-windows",
+        
+        "Authors": [
+            {
+                "Email": "",
+                "Name": "DT"
+            }
+        ],
+        "Id": "DT_DYNAMIC_WORKSPACE",
+        "Version": "1.0",
+        "License": "GPLv3",
+        "Website": "https://github.com/username/myscript"
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js",
+    "KPackageStructure": "KWin/Script"
+}
