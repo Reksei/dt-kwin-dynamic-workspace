@@ -6,8 +6,11 @@ const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_MAXIMIZED = true;
 const CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_FULLSCREENED = true;
 const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_FULLSCREENED = true;
 const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_FULLSCREENED = true;
-const CONFIG_ENABLE_LOGGING = true;
-const CONFIG_TRY_TO_FIX_ANIMATION_WHEN_UNMAXIMIZED = true;
+const CONFIG_ENABLE_LOGGING = false;
+const CONFIG_FIX_DESKTOP_SWITCH_ANIMATION = true;
+
+const CONFIG_CLEANUP_EMPTY_DESKTOPS = true;
+const CONFIG_ADD_ONE_DESKTOP_ON_THE_RIGHT = true;
 
 // ======================= Initialize variables =========================
 // Initialize array for windows maximized with the "above others" enabled
@@ -24,6 +27,9 @@ const maximizedAboveOthersList = [];
 //  startedMaximized: bool
 // }
 const maximizedToOwnDesktopList = [];
+
+// Animation fix causes multiple "desktop changed events", this variable should prevent that
+let animationFixRunning = false;
 
 // ========================= Define functions =============================
 //#region TOOLS
@@ -273,6 +279,39 @@ function checkIfNewDesktopNeeded(client) {
 	return true;
 }
 
+//remove desktop and shift to the left (attempt to fix animation)
+function removeDesktopAndShift(targetDesktop, desktopToRemove) {
+	print("REMOVE AND SHIFT STARTED");
+	animationFixRunning = true;
+	//check animation direction
+	//true = to the left, false = to the right
+	const direction = targetDesktop.x11DesktopNumber < desktopToRemove.x11DesktopNumber ? true : false;
+
+	if (direction) {
+		//get the desktop on the right number
+		const rightDesktopNumber = getNextDesktopNumber(desktopToRemove);
+		//switch to the desktop on the right
+		const rightDesktopNumberFiltered = rightDesktopNumber < 0 || rightDesktopNumber >= workspace.desktops.length ? workspace.desktops.length - 1 : rightDesktopNumber;
+		workspace.currentDesktop = workspace.desktops[rightDesktopNumberFiltered];
+		//remove desktop
+		workspace.removeDesktop(desktopToRemove);
+		//switch to the target desktop
+		workspace.currentDesktop = targetDesktop;
+	} else {
+		//get the desktop on the left number
+		const leftDesktopNumber = getPreviousDesktopNumber(desktopToRemove);
+		//switch to the desktop on the left
+		const leftDesktopNumberFiltered = leftDesktopNumber < 0 ? 0 : leftDesktopNumber;
+		workspace.currentDesktop = workspace.desktops[leftDesktopNumberFiltered];
+		//remove desktop
+		workspace.removeDesktop(desktopToRemove);
+		//switch to the target desktop
+		workspace.currentDesktop = targetDesktop;
+	}
+	animationFixRunning = false;
+	print("REMOVE AND SHIFTFINISHED");
+}
+
 // switch off "above others" when a window is maximized
 function handleAboveOthersOnMaximized(maximizedClient) {
 	const isMaximizedAboveOthers = maximizedAboveOthersList.indexOf(maximizedClient) >= 0;
@@ -354,16 +393,8 @@ function handleNewDekstopOnUnmaximized(unmaximizedClient) {
 			unmaximizedClient.frameGeometry = {x: newX, y: newY, width: newWidth, height: newHeight};
 		}
 
-		if (CONFIG_TRY_TO_FIX_ANIMATION_WHEN_UNMAXIMIZED) {
-			//get the desktop on the right number
-			const rightDesktopNumber = getNextDesktopNumber(workspace.currentDesktop);
-			//switch to the desktop on the right
-			const targetDesktopNumber = rightDesktopNumber < 0 || rightDesktopNumber > workspace.desktops.length ? rightDesktopNumber : workspace.desktops.length - 1;
-			workspace.currentDesktop = workspace.desktops[targetDesktopNumber];
-			//remove the dedicated desktop
-			workspace.removeDesktop(maximizedToOwnDesktopList[arrayIndex].newDesktop);
-			//switch to the original desktop
-			workspace.currentDesktop = maximizedToOwnDesktopList[arrayIndex].originalDesktop;
+		if (CONFIG_FIX_DESKTOP_SWITCH_ANIMATION) { //still won't fix animation if there is no deksktop on the right
+			removeDesktopAndShift(maximizedToOwnDesktopList[arrayIndex].originalDesktop, maximizedToOwnDesktopList[arrayIndex].newDesktop);
 		} else {
 			//change current desktop to the original one
 			workspace.currentDesktop = maximizedToOwnDesktopList[arrayIndex].originalDesktop;
@@ -473,11 +504,71 @@ function onWindowRemoved(removedClient) {
 	if (separateDesktopIndex >= 0) {
 		//move to the desktop on the left
 		const previousDesktopNumber = getPreviousDesktopNumber(workspace.currentDesktop);
-		workspace.currentDesktop = workspace.desktops[previousDesktopNumber];
+
 		//remove the dedicated desktop
-		workspace.removeDesktop(workspace.currentDesktop);
+		if (CONFIG_FIX_DESKTOP_SWITCH_ANIMATION) {
+			removeDesktopAndShift(workspace.desktops[previousDesktopNumber], workspace.currentDesktop)
+		} else {
+			workspace.currentDesktop = workspace.desktops[previousDesktopNumber];
+			//remove the dedicated desktop
+			workspace.removeDesktop(workspace.currentDesktop);
+		}
+
 		//remove array item
 		maximizedToOwnDesktopList.splice(separateDesktopIndex, 1);
+	}
+}
+
+// Function to check if a spare desktop is needed (return true if a spare desktop is required)
+function checkSpareDesktopRequired() {
+	//find the last desktop
+	const lastDesktop = workspace.desktops[workspace.desktops.length - 1];
+	//get the list of clients on the last desktop
+	const lastDesktopClientsList = getClientsListDS(lastDesktop, workspace.activeScreen);
+	//check if all of those clients are "on all desktops"
+	const lastDesktopClientsOnAllDesktops = lastDesktopClientsList.findIndex(client => !client.onAllDesktops) < 0;
+	//define condition to create a spare desktop
+	return lastDesktopClientsList.length > 0 && !lastDesktopClientsOnAllDesktops;
+}
+
+// Handle spare desktop on the right
+function handleSpareDesktop() {
+	if (checkSpareDesktopRequired()) {
+		//create a spare desktop on the right with default name
+		workspace.createDesktop(workspace.desktops.length, "");
+	} else {
+		
+	}
+}
+
+// Empty desktops cleanup
+function desktopsCleanup(previousDesktop) {
+	if (workspace.desktops.length > 1) {
+		//get the list of desktops (has to be an actually new array, not a reference, therefore map)
+		const desktops = workspace.desktops.map(d => d);
+		//cycle through each desktop
+		desktops.forEach((desktop) => {
+			if (desktop == desktops[desktops.length - 1]) {
+				//skip the last desktop
+				return;
+			}
+			//get the list of client on the desktop
+			const clients = getClientsListDS(desktop, workspace.activeScreen);
+			//check if there are no clients
+			const desktopEmpty = clients.length == 0;
+			//check if all the clients are "on all desktops"
+			const clientsOnAllDesktops = clients.findIndex(client => !client.onAllDesktops) < 0;
+			if (desktopEmpty || clientsOnAllDesktops) {
+				//remove desktop
+				if (CONFIG_FIX_DESKTOP_SWITCH_ANIMATION && desktop == previousDesktop) {
+					removeDesktopAndShift(workspace.currentDesktop, desktop);
+				} else {
+					workspace.removeDesktop(desktop);
+				}
+			} else {
+				
+			}
+		})
 	}
 }
 
@@ -543,6 +634,8 @@ workspace.windowAdded.connect((client) => {
 				onFullScreenChanged(client);
 			});
 		}
+
+	if (CONFIG_ADD_ONE_DESKTOP_ON_THE_RIGHT) handleSpareDesktop();
 	}
 });
 
@@ -558,6 +651,15 @@ workspace.windowRemoved.connect((client) => {
 	}
 });
 
-if (CONFIG_ENABLE_LOGGING) {
-	print("================= SCRIPT STARTED ===============");
-}
+// Current desktop changed
+workspace.currentDesktopChanged.connect((previousDesktop) => {
+	if (CONFIG_ENABLE_LOGGING) print("=========== CURRENT DEKSTOP CHANGED ===========")
+	if (CONFIG_CLEANUP_EMPTY_DESKTOPS && !animationFixRunning) desktopsCleanup(previousDesktop);
+})
+
+// Run desktop cleanup and spare desktop handler on the script startup
+if (CONFIG_CLEANUP_EMPTY_DESKTOPS) desktopsCleanup(null);
+if (CONFIG_ADD_ONE_DESKTOP_ON_THE_RIGHT) handleSpareDesktop();
+
+// print debug info when the script is started
+if (CONFIG_ENABLE_LOGGING) print("================= SCRIPT STARTED ===============");
