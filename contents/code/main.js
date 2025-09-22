@@ -6,7 +6,7 @@ const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_MAXIMIZED = true;
 const CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_FULLSCREENED = true;
 const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_FULLSCREENED = true;
 const CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_OPEN_FULLSCREENED = true;
-const CONFIG_ENABLE_LOGGING = false;
+const CONFIG_ENABLE_LOGGING = true;
 
 // ======================= Initialize variables =========================
 // Initialize array for windows maximized with the "above others" enabled
@@ -38,6 +38,14 @@ function getNextDesktopNumber(currentDesktop) {
 		return desktop == currentDesktop;
 	})
 	return currentDesktopNumber + 1;
+}
+
+//get the number of the previous desktop
+function getPreviousDesktopNumber(currentDesktop) {
+	const currentDesktopNumber = workspace.desktops.findIndex(desktop => {
+		return desktop == currentDesktop;
+	})
+	return (currentDesktopNumber - 1) < 0 ? 0 : currentDesktopNumber - 1;
 }
 
 //check if window is maximized
@@ -443,11 +451,14 @@ function onWindowRemoved(removedClient) {
 		maximizedAboveOthersList.splice(maximizedAboveOthersList.indexOf(removedClient), 1);
 	}
 
-	// if client is stored in the "maximized to own desktop", remove it from the array, remove the desktop
+	// if client is stored in the "maximized to own desktop", remove it from the array, remove the desktop, move to the desktop on the left
 	const separateDesktopIndex = maximizedToOwnDesktopList.findIndex(obj => {
 		return obj.client == removedClient && obj.newDesktop == workspace.currentDesktop;
 	})
 	if (separateDesktopIndex >= 0) {
+		//move to the desktop on the left
+		const previousDesktopNumber = getPreviousDesktopNumber(workspace.currentDesktop);
+		workspace.currentDesktop = workspace.desktops[previousDesktopNumber];
 		//remove the dedicated desktop
 		workspace.removeDesktop(workspace.currentDesktop);
 		//remove array item
@@ -533,6 +544,5 @@ workspace.windowRemoved.connect((client) => {
 });
 
 if (CONFIG_ENABLE_LOGGING) {
-	printDesktopsMap();
-	printScreensMap();
+	print("================= SCRIPT STARTED ===============");
 }
