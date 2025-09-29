@@ -10,7 +10,7 @@
             }
         ],
         "Id": "DT_DYNAMIC_WORKSPACE",
-        "Version": "0.1",
+        "Version": "0.2",
         "License": "GPLv3"
     },
     "X-Plasma-API": "javascript",

@@ -26,7 +26,8 @@ const maximizedAboveOthersList = [];
 //  originalDesktop: KWin Desktop,
 //  client: KWin Window,
 //  newDesktop: KWin Desktop,
-//  startedMaximized: bool
+//  startedMaximized: bool,
+//  onAllDesktops: bool
 // }
 const maximizedToOwnDesktopList = [];
 
@@ -36,8 +37,9 @@ let animationFixRunning = false;
 // ========================= Define functions =============================
 //#region TOOLS
 //function to check if a client is a "normal" window (true = normal)
-function checkNormalClient(client) {
-	const isNotNormal = client.skipPager || client === null || !client.normalWindow || client.outline;
+function isNormalClient(client) {
+	const emptyData = client.resourceName == "" && client.resourceClass == "" && client.windowRole == "" && client.desktopFileName == "";
+	const isNotNormal = client.skipPager || client === null || !client.normalWindow || client.outline || client.popupMenu || emptyData;
 	return !isNotNormal;
 }
 
@@ -58,13 +60,21 @@ function getPreviousDesktopNumber(currentDesktop) {
 }
 
 //check if window is maximized
-function checkWindowMaximized(client) {
+function isWindowMaximized(client) {
 	// Get the area a window would occupy when maximized
 	const maximizeArea = workspace.clientArea(KWin.MaximizeArea, client);
 	// Check if the window's current height and width match the maximized area
 	return client.height === maximizeArea.height && client.width === maximizeArea.width;
 }
 
+//check if object is empty
+function isEmptyObject(obj) {
+  // Check if the input is a valid object and not null
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+  return Object.keys(obj).length === 0;
+}
 //#endregion
 
 
@@ -83,10 +93,8 @@ function getDesktopsMap() {
 	
 	//cycle through each existing client
 	workspace.stackingOrder.forEach(client => {
-		//check if the client is a "normal" window
-		const isNormalClient = checkNormalClient(client);
 		//skip if the client isn't a "normal" window
-		if (!isNormalClient) return;
+		if (!isNormalClient(client)) return;
 
 		//if client is on all desktops, map it to all desktops
 		if (client.onAllDesktops) {
@@ -103,7 +111,7 @@ function getDesktopsMap() {
 		//check which desktops the client belongs to
 		client.desktops.forEach(clientDesktop => {
 			//find the desktop in the map
-			const desktopMapIndex = desktopsMap.findIndex((map) => {
+			const desktopMapIndex = desktopsMap.findIndex(map => {
 				return map.desktop == clientDesktop;
 			})
 			//if map desktop found
@@ -172,10 +180,8 @@ function getScreensMap() {
 	
 	//cycle through each existing client
 	workspace.stackingOrder.forEach(client => {
-		//check if the client is a "normal" window
-		const isNormalClient = checkNormalClient(client);
 		//skip if the client isn't a "normal" window
-		if (!isNormalClient) return;
+		if (!isNormalClient(client)) return;
 
 		//map clients to corresponding screens
 		const screenMapIndex = screensMap.findIndex(map => {
@@ -283,7 +289,7 @@ function checkIfNewDesktopNeeded(client) {
 
 //remove desktop and shift to the left (attempt to fix animation)
 function removeDesktopAndShift(targetDesktop, desktopToRemove) {
-	print("REMOVE AND SHIFT STARTED");
+	if (CONFIG_ENABLE_LOGGING) print("REMOVE AND SHIFT STARTED");
 	animationFixRunning = true;
 	//check animation direction
 	//true = to the left, false = to the right
@@ -311,7 +317,7 @@ function removeDesktopAndShift(targetDesktop, desktopToRemove) {
 		workspace.currentDesktop = targetDesktop;
 	}
 	animationFixRunning = false;
-	print("REMOVE AND SHIFTFINISHED");
+	if (CONFIG_ENABLE_LOGGING) print("REMOVE AND SHIFTFINISHED");
 }
 
 // switch off "above others" when a window is maximized
@@ -345,14 +351,17 @@ function handleNewDesktopOnMaximized(maximizedClient, isStartedMaximized) {
 	if (conditionToCreateDekstop) {
 		//store data to the array
 		//part 1 - store original desktops and client info
-		const dataObj = {};
-		dataObj.originalDesktopsList = [];
+		const dataObj = {
+			originalDesktopsList: [],
+			originalDesktop: workspace.currentDesktop,
+			client: maximizedClient,
+			startedMaximized: isStartedMaximized,
+			newDesktop: workspace.currentDesktop,
+			onAllDesktops: maximizedClient.onAllDesktops
+		};
 		maximizedClient.desktops.forEach(desktop => {
 			dataObj.originalDesktopsList.push(desktop);
-		})
-		dataObj.originalDesktop = workspace.currentDesktop;
-		dataObj.client = maximizedClient;
-		dataObj.startedMaximized = isStartedMaximized;
+		});
 
 		//create new desktop
 		const newDesktopNumber = getNextDesktopNumber(workspace.currentDesktop);
@@ -376,16 +385,33 @@ function handleNewDekstopOnUnmaximized(unmaximizedClient) {
 	//check if client is on dedicated desktop
 	const arrayIndex = maximizedToOwnDesktopList.findIndex(obj => {
 		return obj.client == unmaximizedClient && obj.newDesktop == workspace.currentDesktop;
-	})
+	});
 
 	//define condition to remove desktop
 	const conditionToRemoveDesktop = arrayIndex >= 0;
 
 	if (conditionToRemoveDesktop) {
-		//restore original desktops of the client
-		unmaximizedClient.desktops = maximizedToOwnDesktopList[arrayIndex].originalDesktopsList;
+		const savedObj = maximizedToOwnDesktopList[arrayIndex];
+		
+		//read the original desktops of the client
+		const originalDesktopsList = [];
+		savedObj.originalDesktopsList.forEach(originalDesktop => {
+			if (isEmptyObject(originalDesktop)) {
+				return;
+			}
+			originalDesktopsList.push(originalDesktop);
+		})
+
+		//restore the original desktops of the client
+		if (originalDesktopsList.length > 0) {
+			unmaximizedClient.desktops = originalDesktopsList;
+		} else if (savedObj.onAllDesktops) {
+			unmaximizedClient.onAllDesktops = true;
+			unmaximizedClient.desktops = [];
+		}
+		
 		//change screen geometry if the scren was originally started maximized (otherwise it spawns in the top left corner)
-		if (maximizedToOwnDesktopList[arrayIndex].startedMaximized){
+		if (savedObj.startedMaximized){
 			//unmaximize and move to center
 			const screenGeometry = workspace.activeScreen.geometry;
 			const newWidth = screenGeometry.width / 2;
@@ -395,19 +421,37 @@ function handleNewDekstopOnUnmaximized(unmaximizedClient) {
 			unmaximizedClient.frameGeometry = {x: newX, y: newY, width: newWidth, height: newHeight};
 		}
 
-		if (CONFIG_FIX_DESKTOP_SWITCH_ANIMATION) { //still won't fix animation if there is no deksktop on the right
-			removeDesktopAndShift(maximizedToOwnDesktopList[arrayIndex].originalDesktop, maximizedToOwnDesktopList[arrayIndex].newDesktop);
-		} else {
-			//change current desktop to the original one
-			workspace.currentDesktop = maximizedToOwnDesktopList[arrayIndex].originalDesktop;
-			//remove the dedicated desktop
-			workspace.removeDesktop(maximizedToOwnDesktopList[arrayIndex].newDesktop);
+		//find the desktop to shift to (the original desktop preferably)
+		let desktopToShiftTo = savedObj.originalDesktop;
+
+		if (isEmptyObject(desktopToShiftTo)) {
+			if (originalDesktopsList.length > 0) {
+				desktopToShiftTo= originalDesktopsList[0];
+			} else {
+				//default to current desktop (don't delete it)
+				desktopToShiftTo = workspace.currentDesktop;
+			}
+		}
+
+		if (desktopToShiftTo != workspace.currentDesktop) {
+			if (CONFIG_FIX_DESKTOP_SWITCH_ANIMATION) { //still won't fix animation if there is no deksktop on the right
+				removeDesktopAndShift(desktopToShiftTo, savedObj.newDesktop);
+			} else {
+				//change current desktop to the original one
+				workspace.currentDesktop = desktopToShiftTo;
+				//remove the dedicated desktop
+				workspace.removeDesktop(savedObj.newDesktop);
+			}
 		}
 
 		//remove array item
 		maximizedToOwnDesktopList.splice(arrayIndex, 1);
 	}
 
+	if (CONFIG_ENABLE_LOGGING) {
+		print("DEBUG ABOVE OTHERS LIST: " + maximizedAboveOthersList);
+		print("DEBUG TO OWN DESKTOP LIST: " + maximizedToOwnDesktopList);
+	}
 }
 
 // Define function to execute on maximized status changed
@@ -416,11 +460,11 @@ function onMaximizedChanged(client) {
 	if (CONFIG_ENABLE_LOGGING) {
 		print("======== WINDOW MAXIMIZED CHANGED ========")
 		print("Selected window: " + client.caption);
-		print("Maximized changed to: " + checkWindowMaximized(client));
+		print("Maximized changed to: " + isWindowMaximized(client));
 	}
 	
     // window is maximized
-    if (checkWindowMaximized(client)) {
+    if (isWindowMaximized(client)) {
         // keep above others handler
 		if (CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_MAXIMIZED) {
 			handleAboveOthersOnMaximized(client);
@@ -433,7 +477,7 @@ function onMaximizedChanged(client) {
     }
 
     // window is unmaximized
-    if (!checkWindowMaximized(client)) {
+    if (!isWindowMaximized(client)) {
         // keep above others handler
 		if (CONFIG_TOGGLE_ABOVE_OTHERS_WHEN_MAXIMIZED) {
 			handleAboveOthersOnUnMaximized(client);
@@ -499,30 +543,50 @@ function onWindowRemoved(removedClient) {
 		maximizedAboveOthersList.splice(maximizedAboveOthersList.indexOf(removedClient), 1);
 	}
 
-	// if client is stored in the "maximized to own desktop", remove it from the array, remove the desktop, move to the desktop on the left
+	// if client is stored in the "maximized to own desktop", remove it from the array, remove the desktop, move to the desktop on the left or on the right
 	const separateDesktopIndex = maximizedToOwnDesktopList.findIndex(obj => {
 		return obj.client == removedClient && obj.newDesktop == workspace.currentDesktop;
 	})
 	if (separateDesktopIndex >= 0) {
-		//move to the desktop on the left
+		//move to the desktop on the left or on the right
 		const previousDesktopNumber = getPreviousDesktopNumber(workspace.currentDesktop);
+		const nextDesktopNumber = getNextDesktopNumber(workspace.currentDesktop);
 
-		//remove the dedicated desktop
-		if (CONFIG_FIX_DESKTOP_SWITCH_ANIMATION) {
-			removeDesktopAndShift(workspace.desktops[previousDesktopNumber], workspace.currentDesktop)
-		} else {
-			workspace.currentDesktop = workspace.desktops[previousDesktopNumber];
+		//check if desktops on the right or on the left exist
+		let desktopToShiftTo = workspace.currentDesktop;
+		if (previousDesktopNumber >= 0) {
+			desktopToShiftTo = workspace.desktops[previousDesktopNumber];
+		} else if (nextDesktopNumber >= 0) {
+			desktopToShiftTo = workspace.desktops[nextDesktopNumber];
+		}
+
+		if (desktopToShiftTo != workspace.currentDesktop) {
 			//remove the dedicated desktop
-			workspace.removeDesktop(workspace.currentDesktop);
+			if (CONFIG_FIX_DESKTOP_SWITCH_ANIMATION) {
+				removeDesktopAndShift(desktopToShiftTo, workspace.currentDesktop)
+			} else {
+				workspace.currentDesktop = desktopToShiftTo;
+				//remove the dedicated desktop
+				workspace.removeDesktop(workspace.currentDesktop);
+			}
 		}
 
 		//remove array item
 		maximizedToOwnDesktopList.splice(separateDesktopIndex, 1);
 	}
+
+	if (workspace.desktops.length == 2 && !checkIfNewDesktopNeeded(removedClient)) {
+		workspace.removeDesktop(workspace.desktops[1]);
+	}
+	
+	if (CONFIG_ENABLE_LOGGING) {
+		print("DEBUG ABOVE OTHERS LIST: " + maximizedAboveOthersList);
+		print("DEBUG TO OWN DESKTOP LIST: " + maximizedToOwnDesktopList);
+	}
 }
 
 // Function to check if a spare desktop is needed (return true if a spare desktop is required)
-function checkSpareDesktopRequired() {
+function isSpareDesktopRequired() {
 	//find the last desktop
 	const lastDesktop = workspace.desktops[workspace.desktops.length - 1];
 	//get the list of clients on the last desktop
@@ -535,11 +599,9 @@ function checkSpareDesktopRequired() {
 
 // Handle spare desktop on the right
 function handleSpareDesktop() {
-	if (checkSpareDesktopRequired()) {
+	if (isSpareDesktopRequired()) {
 		//create a spare desktop on the right with default name
 		workspace.createDesktop(workspace.desktops.length, "");
-	} else {
-		
 	}
 }
 
@@ -550,7 +612,7 @@ function desktopsCleanup(previousDesktop) {
 		const desktops = workspace.desktops.map(d => d);
 		//cycle through each desktop
 		desktops.forEach((desktop) => {
-			if (desktop == desktops[desktops.length - 1]) {
+			if (CONFIG_ADD_ONE_DESKTOP_ON_THE_RIGHT && desktop == desktops[desktops.length - 1]) {
 				//skip the last desktop
 				return;
 			}
@@ -567,8 +629,6 @@ function desktopsCleanup(previousDesktop) {
 				} else {
 					workspace.removeDesktop(desktop);
 				}
-			} else {
-				
 			}
 		})
 	}
@@ -578,13 +638,13 @@ function desktopsCleanup(previousDesktop) {
 // Attach listeners to existing maximizeable windows (when the script is started)
 workspace.stackingOrder.forEach((client) => {
 	//connect to maximized changed event
-    if (client.maximizable && checkNormalClient(client)) {
+    if (client.maximizable && isNormalClient(client)) {
         client.maximizedChanged.connect(() => {
             onMaximizedChanged(client);
     	});
     }
 	//connect to fullscreen changed event
-    if (client.fullScreenable && checkNormalClient(client)) {
+    if (client.fullScreenable && isNormalClient(client)) {
         client.fullScreenChanged.connect(() => {
             onFullScreenChanged(client);
     	});
@@ -593,13 +653,16 @@ workspace.stackingOrder.forEach((client) => {
 
 // A window added
 workspace.windowAdded.connect((client) => {
-	if (checkNormalClient(client)) {
-		if (CONFIG_ENABLE_LOGGING) print("======== NEW WINDOW OPENED ===========");
+	if (isNormalClient(client)) {
+		if (CONFIG_ENABLE_LOGGING) { 
+			print("======== NEW WINDOW OPENED ===========");
+			print("New window: " + client.caption);
+		}
 
 		//connect to maximized changed event
 		if (client.maximizable) {
 			//is window maximized when opened?
-			if (checkWindowMaximized(client)) {
+			if (isWindowMaximized(client)) {
 				if (CONFIG_ENABLE_LOGGING) print("NEW WINDOW OPEN IN MAXIMIZED STATE");
 				if (CONFIG_MOVE_TO_NEW_DESKTOP_WHEN_STARTED_MAXIMIZED) {
 					//move to new desktop
@@ -643,7 +706,7 @@ workspace.windowAdded.connect((client) => {
 
 // A window removed
 workspace.windowRemoved.connect((client) => {
-	if (checkNormalClient(client)) {
+	if (isNormalClient(client)) {
 		// print info
 		if (CONFIG_ENABLE_LOGGING) {
 			print("======== WINDOW REMOVED ========");
